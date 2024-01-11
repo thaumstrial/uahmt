@@ -1,4 +1,4 @@
-use bevy::input::mouse::MouseWheel;
+use bevy::input::mouse::{MouseWheel, MouseMotion};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use bevy_xpbd_2d::prelude::*;
@@ -47,7 +47,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         RigidBody::Dynamic,
-        Collider::cuboid(25., 25.),
+        Collider::cuboid(20., 20.),
         GravityScale(0.),
         Engine {
             throttle: 1.,
@@ -68,20 +68,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         RigidBody::Dynamic,
-        Collider::cuboid(25., 25.),
+        Collider::cuboid(20., 20.),
         GravityScale(0.)
     ));
 } 
 
-fn input_handler(
-    mut q_player: Query<(&mut LinearVelocity, &mut AngularVelocity, &mut Engine, &MomentumWheel), With<PlayerMarker>>,
-    mut q_camera: Query<&mut OrthographicProjection, With<CameraMarker>>,
-    mut commands: Commands,
-    physics_config: Res<PhysicsDebugConfig>,
-    keyboard: Res<Input<KeyCode>>,
-    mut mouse_wheel: EventReader<MouseWheel>
-) {
-    // player controller
+fn player_controller(mut q_player: Query<(&mut LinearVelocity, &mut AngularVelocity, &mut Engine, &MomentumWheel), With<PlayerMarker>>, keyboard: Res<Input<KeyCode>>) {
     if let Ok((mut linear_v, mut angular_v, mut engine, m_wheel)) = q_player.get_single_mut() {
         // linear movement
         let mut linear_mov = Vec2::ZERO;
@@ -119,11 +111,17 @@ fn input_handler(
             engine.throttle = 1.;
         }
     }
-    
-    // camera controller
-    if let Ok(mut projection) = q_camera.get_single_mut() {
+}
+
+fn camera_controller(
+    mut q_camera: Query<(&mut OrthographicProjection, &mut Transform), With<CameraMarker>>, 
+    mut scroll: EventReader<MouseWheel>, 
+    mut motion: EventReader<MouseMotion>, 
+    button: Res<Input<MouseButton>>
+) {
+    if let Ok((mut projection, mut transform)) = q_camera.get_single_mut() {
         use bevy::input::mouse::MouseScrollUnit;
-        for ev in mouse_wheel.read() {
+        for ev in scroll.read() {
             match ev.unit {
                 MouseScrollUnit::Line => {
                     projection.scale -= ev.y / 10.;
@@ -133,11 +131,18 @@ fn input_handler(
                 }
             }
         }
+        if button.pressed(MouseButton::Middle) {
+            for ev in motion.read() {
+                transform.translation.x -= ev.delta.x * projection.scale;
+                transform.translation.y += ev.delta.y * projection.scale;
+            }
+        }
     }
-    
-    // debug controller
-    if keyboard.just_released(KeyCode::F3) {
-        commands.insert_resource(PhysicsDebugConfig {
+}
+
+fn debug_controller(mut command: Commands, physics_config: Res<PhysicsDebugConfig>, keyboard: Res<Input<KeyCode>>) {
+    if keyboard.just_pressed(KeyCode::F3) {
+        command.insert_resource(PhysicsDebugConfig {
             enabled: !physics_config.enabled,
             ..*physics_config
         })
@@ -163,6 +168,6 @@ fn main() {
             ..default()
         })
         .add_systems(Startup, setup)
-        .add_systems(Update, input_handler)
+        .add_systems(Update, (player_controller, camera_controller, debug_controller))
         .run();
 }
