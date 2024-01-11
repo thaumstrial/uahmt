@@ -8,6 +8,7 @@ edition = "2021"
 # Remember to revert this before releasing your game!
 [dependencies]
 bevy = { version = "0.12.1", features = ["dynamic_linking"] }
+bevy_xpbd_2d = "0.3"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

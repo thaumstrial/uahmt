@@ -1,7 +1,11 @@
 use bevy::{prelude::*, window::WindowResolution};
+use bevy_xpbd_2d::prelude::*;
 
-struct Player(u64);
-
+#[derive(Bundle, Default)]
+struct PlayerBundle{
+    rigid_body: RigidBody,
+    text: Text2dBundle
+}
 
 #[derive(Resource)]
 struct UiFont(Handle<Font>);
@@ -9,15 +13,32 @@ struct UiFont(Handle<Font>);
 #[derive(Component)]
 struct CameraMarker;
 
-fn setup_camera(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // load font
+    let font_hanle: Handle<Font> = asset_server.load("font.ttf");
+    let text_style = TextStyle {
+        font: font_hanle.clone(),
+        font_size: 60.0,
+        color: Color::WHITE,
+    };
+    let text_alignment = TextAlignment::Center;
+    commands.insert_resource(UiFont(font_hanle));
+
+    // setup camera
     commands.spawn((
         Camera2dBundle::default(),
         CameraMarker
     ));
-}
-fn load_font(asset_server: Res<AssetServer>, mut commands: Commands) {
-    let font_hanle: Handle<Font> = asset_server.load("font.ttf");
-    commands.insert_resource(UiFont(font_hanle));
+
+    // setup player
+    commands.spawn(PlayerBundle {
+        text: Text2dBundle {
+            text: Text::from_section("@", text_style)
+                .with_alignment(text_alignment),
+            ..default()
+        },
+        ..Default::default()
+    });
 }
 
 fn main() {
@@ -32,6 +53,6 @@ fn main() {
                 ..default()
             })
         )
-        .add_systems(Startup, (setup_camera, load_font))
+        .add_systems(Startup, setup)
         .run();
 }
