@@ -1,5 +1,6 @@
 use bevy::input::mouse::{MouseWheel, MouseMotion};
 use bevy::prelude::*;
+use bevy::transform::TransformSystem;
 use bevy::window::WindowResolution;
 use bevy_xpbd_2d::prelude::*;
 
@@ -19,8 +20,17 @@ struct MomentumWheel {
 #[derive(Component)]
 struct PlayerMarker;
 
-#[derive(Component)]
-struct CameraMarker;
+#[derive(PartialEq, Default)]
+enum CameraMode {
+    Free,
+    #[default]
+    Follow
+}
+#[derive(Component, Default)]
+struct CameraController {
+    mode: CameraMode,
+    relative_translation: Vec3
+}
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // load font
@@ -36,7 +46,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // setup camera
     commands.spawn((
         Camera2dBundle::default(),
-        CameraMarker
+        CameraController::default()
     ));
 
     // setup player
@@ -114,12 +124,23 @@ fn player_controller(mut q_player: Query<(&mut LinearVelocity, &mut AngularVeloc
 }
 
 fn camera_controller(
-    mut q_camera: Query<(&mut OrthographicProjection, &mut Transform), With<CameraMarker>>, 
+    mut q_camera: Query<(&mut OrthographicProjection, &mut Transform, &mut CameraController)>, 
     mut scroll: EventReader<MouseWheel>, 
-    mut motion: EventReader<MouseMotion>, 
+    mut motion: EventReader<MouseMotion>,
+    keyboard: Res<Input<KeyCode>>,
     button: Res<Input<MouseButton>>
 ) {
-    if let Ok((mut projection, mut transform)) = q_camera.get_single_mut() {
+    if let Ok((mut projection, mut c_transform, mut controller)) = q_camera.get_single_mut() {
+        if button.pressed(MouseButton::Middle) {
+            for ev in motion.read() {
+                let motion_vec = Vec3::new(-ev.delta.x * projection.scale, ev.delta.y * projection.scale, 0.);
+                match controller.mode {
+                    CameraMode::Follow => controller.relative_translation += motion_vec,
+                    CameraMode::Free => c_transform.translation += motion_vec
+                }
+                println!("{}", motion_vec)
+            }
+        }
         use bevy::input::mouse::MouseScrollUnit;
         for ev in scroll.read() {
             match ev.unit {
@@ -131,10 +152,35 @@ fn camera_controller(
                 }
             }
         }
-        if button.pressed(MouseButton::Middle) {
-            for ev in motion.read() {
-                transform.translation.x -= ev.delta.x * projection.scale;
-                transform.translation.y += ev.delta.y * projection.scale;
+        if keyboard.just_pressed(KeyCode::V) {
+            controller.mode = match controller.mode {
+                CameraMode::Follow => {
+                    CameraMode::Free
+                },
+                CameraMode::Free => {
+                    controller.relative_translation = Vec3::ZERO;
+                    CameraMode::Follow
+                }
+            }
+        }
+    }
+}
+
+fn sync_camera(
+    mut q_camera: Query<(&mut Transform, &CameraController), Without<PlayerMarker>>,
+    q_player: Query<&Transform, With<PlayerMarker>>
+) {
+    if let (
+        Ok((mut c_transform, controller)),
+        Ok(p_transform)) 
+        = (
+        q_camera.get_single_mut(),
+        q_player.get_single()
+    ) {
+        match controller.mode {
+            CameraMode::Free => {},
+            CameraMode::Follow => {
+                c_transform.translation = p_transform.translation + controller.relative_translation;
             }
         }
     }
@@ -169,5 +215,11 @@ fn main() {
         })
         .add_systems(Startup, setup)
         .add_systems(Update, (player_controller, camera_controller, debug_controller))
+        .add_systems(
+            PostUpdate,
+            sync_camera
+                .after(PhysicsSet::Sync)
+                .before(TransformSystem::TransformPropagate),
+        )
         .run();
 }
