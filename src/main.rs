@@ -41,6 +41,14 @@ impl Default for Hold {
     }
 }
 
+#[derive(Component)]
+struct GravitationalField{
+    g: f32,
+    s: f32,
+    h: f32,
+    r: f32
+}
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // load font
     let font_hanle: Handle<Font> = asset_server.load("font.ttf");
@@ -94,7 +102,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // setup wall
     commands.spawn((
         Text2dBundle {
-            text: Text::from_section("O", text_style.clone())
+            text: Text::from_section("‰", text_style.clone())
                 .with_alignment(text_alignment.clone()),
             transform: Transform::from_xyz(50., 50., 0.),
             ..default()
@@ -102,6 +110,45 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         RigidBody::Dynamic,
         Collider::cuboid(20., 20.),
         GravityScale(0.),
+        ObjectMarker
+    ));
+    // setup wall
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section("÷", text_style.clone())
+                .with_alignment(text_alignment.clone()),
+            transform: Transform::from_xyz(50., -50., 0.),
+            ..default()
+        },
+        RigidBody::Dynamic,
+        Collider::cuboid(20., 20.),
+        ColliderDensity(10000.),
+        GravityScale(0.),
+        GravitationalField {
+            g: 10.,
+            s: 1.,
+            h: 1000.,
+            r: 10000.
+        },
+        ObjectMarker
+    ));
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section("÷", text_style.clone())
+                .with_alignment(text_alignment.clone()),
+            transform: Transform::from_xyz(-50., -50., 0.),
+            ..default()
+        },
+        RigidBody::Dynamic,
+        Collider::cuboid(20., 20.),
+        ColliderDensity(10000.),
+        GravityScale(0.),
+        GravitationalField {
+            g: 10.,
+            s: 1.,
+            h: 1000.,
+            r: 10000.
+        },
         ObjectMarker
     ));
 } 
@@ -277,7 +324,11 @@ fn debug_controller(mut commands: Commands, physics_config: Res<PhysicsDebugConf
     }
 }
 
-fn activate_sas(mut q_entity: Query<(&mut AngularVelocity, &Engine, Option<&PlayerMarker>)>, keyboard: Res<Input<KeyCode>>, time: Res<Time>) {
+fn process_sas(
+    mut q_entity: Query<(&mut AngularVelocity, &Engine, Option<&PlayerMarker>)>, 
+    keyboard: Res<Input<KeyCode>>, 
+    time: Res<Time>
+) {
     for (mut angular_v, engine, marker) in q_entity.iter_mut() {
         if engine.enable_sas ==  true {
             if let Some(_marker) = marker {
@@ -286,6 +337,22 @@ fn activate_sas(mut q_entity: Query<(&mut AngularVelocity, &Engine, Option<&Play
                 }
             }
             angular_v.0 = (angular_v.0 - engine.momentum * engine.momentum_limit * time.delta_seconds()).max(0.);
+        }
+    }
+}
+
+fn process_gfield(
+    q_planet: Query<(&Transform, &GravitationalField, &Mass, Entity)>,
+    mut q_rigidbody: Query<(&Transform, &mut LinearVelocity, Entity), Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    time: Res<Time>
+) {
+    for (p_transform, p_gfield, p_mass, p_entity) in q_planet.iter() {
+        for (r_transform, mut linear_v, r_entity) in q_rigidbody.iter_mut() {
+            let distance = p_transform.translation.truncate().distance(r_transform.translation.truncate()) * p_gfield.s + p_gfield.h;
+            if p_entity != r_entity && distance <= p_gfield.r {
+                let delta_v = p_gfield.g * p_mass.0 / distance.powf(2.) * time.delta_seconds();
+                linear_v.0 += (p_transform.translation.truncate() - r_transform.translation.truncate()).normalize() * delta_v;
+            }
         }
     }
 }
@@ -317,6 +384,6 @@ fn main() {
                 .after(PhysicsSet::Sync)
                 .before(TransformSystem::TransformPropagate),
         )
-        .add_systems(Update, activate_sas)
+        .add_systems(Update, (process_sas, process_gfield))
         .run();
 }
