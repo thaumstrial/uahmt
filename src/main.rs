@@ -50,6 +50,9 @@ struct GravitationalField{
     r: f32
 }
 
+#[derive(Component)]
+struct Hardness(f32);
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // load font
     let font_hanle: Handle<Font> = asset_server.load("font.ttf");
@@ -85,6 +88,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             enable_sas: false
         },
         Hold::default(),
+        Hardness(10000.),
         PlayerMarker
     ));
     // setup wall
@@ -98,6 +102,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         RigidBody::Dynamic,
         Collider::cuboid(20., 20.),
         GravityScale(0.),
+        Hardness(10000.),
         ObjectMarker
     ));
     // setup wall
@@ -111,6 +116,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         RigidBody::Dynamic,
         Collider::cuboid(20., 20.),
         GravityScale(0.),
+        Hardness(10000.),
         ObjectMarker
     ));
     // setup wall
@@ -131,6 +137,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             h: 1000.,
             r: 10000.
         },
+        Hardness(10000.),
         ObjectMarker
     ));
     commands.spawn((
@@ -150,6 +157,26 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             h: 1000.,
             r: 10000.
         },
+        Hardness(500.),
+        ObjectMarker
+    ));
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section("N", text_style.clone())
+                .with_alignment(text_alignment.clone()),
+            transform: Transform::from_xyz(-80., -80., 0.),
+            ..default()
+        },
+        RigidBody::Dynamic,
+        Collider::cuboid(20., 20.),
+        GravityScale(0.),
+        GravitationalField {
+            g: 10.,
+            s: 1.,
+            h: 1000.,
+            r: 10000.
+        },
+        Hardness(250.),
         ObjectMarker
     ));
 } 
@@ -424,6 +451,39 @@ fn process_gfield(
     }
 }
 
+fn process_destroy(
+    mut commands: Commands,
+    mut collision: EventReader<CollisionStarted>,
+    q_rigidbody: Query<(&Hardness, &LinearVelocity, &Mass), Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    time: Res<Time>
+) {
+    for CollisionStarted(entity1, entity2) in collision.read() {
+        if let (
+            Ok(h1), 
+            Ok(v1), 
+            Ok(m1), 
+            Ok(h2), 
+            Ok(v2), 
+            Ok(m2)) = (
+                q_rigidbody.get_component::<Hardness>(*entity1), 
+                q_rigidbody.get_component::<LinearVelocity>(*entity1), 
+                q_rigidbody.get_component::<Mass>(*entity1), 
+                q_rigidbody.get_component::<Hardness>(*entity2), 
+                q_rigidbody.get_component::<LinearVelocity>(*entity2), 
+                q_rigidbody.get_component::<Mass>(*entity2)
+        ) {
+            let vt = 2. * (m1.0 * v1.0 + m2.0 * v2.0) / (m1.0 + m2.0);
+            let impulse = (vt - 2. * v1.0).length() * m1.0 * time.delta_seconds();
+            if impulse >= h1.0 {
+                commands.entity(*entity1).despawn();
+            }
+            if impulse >= h2.0 {
+                commands.entity(*entity2).despawn();
+            }
+        };
+    }
+}
+
 #[bevy_main]
 fn main() {
     App::new()
@@ -451,6 +511,6 @@ fn main() {
                 .after(PhysicsSet::Sync)
                 .before(TransformSystem::TransformPropagate),
         )
-        .add_systems(Update, (process_sas, process_gfield))
+        .add_systems(Update, (process_sas, process_gfield, process_destroy))
         .run();
 }
