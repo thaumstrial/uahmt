@@ -402,13 +402,21 @@ fn process_sas(
 
 fn process_gfield(
     q_planet: Query<(&Transform, &GravitationalField, &Mass, Entity)>,
-    mut q_rigidbody: Query<(&Transform, &mut LinearVelocity, Entity), Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    q_transform: Query<&Transform, Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    mut q_linearvelocity: Query<&mut LinearVelocity, Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    q_spatial: SpatialQuery,
     time: Res<Time>
 ) {
     for (p_transform, p_gfield, p_mass, p_entity) in q_planet.iter() {
-        for (r_transform, mut linear_v, r_entity) in q_rigidbody.iter_mut() {
-            let distance = p_transform.translation.truncate().distance(r_transform.translation.truncate()) * p_gfield.s + p_gfield.h;
-            if p_entity != r_entity && distance <= p_gfield.r {
+        let intersections = q_spatial.shape_intersections(
+            &Collider::ball(p_gfield.r), 
+            p_transform.translation.truncate(), 
+            0., 
+            SpatialQueryFilter::default().without_entities([p_entity])
+        );
+        for &t_entity in intersections.iter() {
+            if let (Ok(r_transform), Ok(mut linear_v)) = (q_transform.get_component::<Transform>(t_entity), q_linearvelocity.get_component_mut::<LinearVelocity>(t_entity)) {
+                let distance = p_transform.translation.truncate().distance(r_transform.translation.truncate()) * p_gfield.s + p_gfield.h;
                 let delta_v = p_gfield.g * p_mass.0 / distance.powf(2.) * time.delta_seconds();
                 linear_v.0 += (p_transform.translation.truncate() - r_transform.translation.truncate()).normalize() * delta_v;
             }
