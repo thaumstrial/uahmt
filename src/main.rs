@@ -24,7 +24,8 @@ struct ObjectMarker;
 enum CameraMode {
     Free,
     #[default]
-    Follow
+    Follow,
+    Fixed
 }
 #[derive(Component, Default)]
 struct CameraController {
@@ -155,6 +156,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn player_controller(
     mut q_player: Query<(Entity, &Transform, &mut LinearVelocity, &mut AngularVelocity, &mut Engine, &mut Hold), With<PlayerMarker>>,
+    q_camera: Query<(&Transform, &CameraController)>,
     keyboard: Res<Input<KeyCode>>,
     time: Res<Time>,
     mut commands: Commands,
@@ -164,7 +166,7 @@ fn player_controller(
     if let Ok((player_id, p_transform, mut linear_v, mut angular_v, mut engine, mut hold)) = q_player.get_single_mut() {
         let delta_time = time.delta_seconds();
         // linear movement
-        let mut linear_mov = Vec2::ZERO;
+        let mut linear_mov = Vec3::ZERO;
         if keyboard.pressed(KeyCode::A) {
             linear_mov.x -= 1.;
         }
@@ -177,7 +179,12 @@ fn player_controller(
         if keyboard.pressed(KeyCode::W) {
             linear_mov.y += 1.;
         }
-        linear_v.0 += linear_mov.normalize_or_zero() * engine.thrust * engine.throttle * delta_time;
+        if let Ok((c_transform, c_controller)) = q_camera.get_single() {
+            if c_controller.mode == CameraMode::Fixed {
+                linear_mov = c_transform.rotation * linear_mov;
+            }
+        }
+        linear_v.0 += linear_mov.truncate().normalize_or_zero() * engine.thrust * engine.throttle * delta_time;
         // angular movement
         if keyboard.pressed(KeyCode::Q) {
             angular_v.0 += engine.momentum * engine.momentum_limit * delta_time;
@@ -265,7 +272,8 @@ fn camera_controller(
                 let motion_vec = Vec3::new(-ev.delta.x * projection.scale, ev.delta.y * projection.scale, 0.);
                 match controller.mode {
                     CameraMode::Follow => {controller.relative_translation += motion_vec * delta_time * 100.;},
-                    CameraMode::Free => {c_transform.translation += motion_vec * delta_time * 100.;}
+                    CameraMode::Free => {c_transform.translation += motion_vec * delta_time * 100.;},
+                    CameraMode::Fixed => {},
                 }
             }
         }
@@ -288,6 +296,9 @@ fn camera_controller(
                 },
                 CameraMode::Free => {
                     controller.relative_translation = Vec3::ZERO;
+                    CameraMode::Fixed
+                }
+                CameraMode::Fixed => {
                     CameraMode::Follow
                 }
             }
@@ -310,6 +321,10 @@ fn sync_camera(
             CameraMode::Free => {},
             CameraMode::Follow => {
                 c_transform.translation = p_transform.translation + controller.relative_translation;
+            }
+            CameraMode::Fixed => {
+                c_transform.translation = p_transform.translation.clone();
+                c_transform.rotation = p_transform.rotation.clone();
             }
         }
     }
