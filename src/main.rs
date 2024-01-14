@@ -135,7 +135,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
     commands.spawn((
         Text2dBundle {
-            text: Text::from_section("÷", text_style.clone())
+            text: Text::from_section("÷\n÷÷÷\n÷÷÷÷÷\n÷÷÷÷÷÷÷\n÷÷÷÷÷\n÷÷÷\n÷", text_style.clone())
                 .with_alignment(text_alignment.clone()),
             transform: Transform::from_xyz(-50., -50., 0.),
             ..default()
@@ -155,15 +155,23 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 } 
 
 fn player_controller(
-    mut q_player: Query<(Entity, &Transform, &mut LinearVelocity, &mut AngularVelocity, &mut Engine, &mut Hold), With<PlayerMarker>>,
+    mut q_player: Query<(Entity, &Transform, &mut LinearVelocity, &mut AngularVelocity, &mut Engine, &mut Hold, &Mass), With<PlayerMarker>>,
     q_camera: Query<(&Transform, &CameraController)>,
     keyboard: Res<Input<KeyCode>>,
     time: Res<Time>,
     mut commands: Commands,
     q_spatial: SpatialQuery,
-    q_rigidbody: Query<&Transform, With<ObjectMarker>>
+    mut q_rigidbody: Query<(&Transform, &mut LinearVelocity, &Mass), (With<ObjectMarker>, Without<PlayerMarker>)>
 ) {
-    if let Ok((player_id, p_transform, mut linear_v, mut angular_v, mut engine, mut hold)) = q_player.get_single_mut() {
+    if let Ok((
+        player_id, 
+        p_transform, 
+        mut linear_v, 
+        mut angular_v, 
+        mut engine, 
+        mut hold,
+        p_mass
+    )) = q_player.get_single_mut() {
         let delta_time = time.delta_seconds();
         // linear movement
         let mut linear_mov = Vec3::ZERO;
@@ -223,7 +231,7 @@ fn player_controller(
                     let hits = q_spatial.ray_hits(
                         origin,
                         direction,
-                        24.,
+                        25.,
                         2,
                         false,
                         SpatialQueryFilter::default()
@@ -238,7 +246,7 @@ fn player_controller(
                             };
                             if let Ok(t_transform) = q_rigidbody.get_component::<Transform>(t_hit.entity) {
                                 let anchor1_vec = direction * p_hit.time_of_impact;
-                                let anchor2_vec = origin + direction * t_hit.time_of_impact - t_transform.translation.truncate();
+                                let anchor2_vec = origin + direction * p_hit.time_of_impact - t_transform.translation.truncate();
                                 let joint_id = commands.spawn(
                                     FixedJoint::new(player_id, t_hit.entity)
                                         .with_local_anchor_1(anchor1_vec)
@@ -252,6 +260,41 @@ fn player_controller(
                     }
                 }
             }
+        }
+        // push entity
+        if keyboard.just_pressed(KeyCode::Space) {
+            // optimized code has bug
+            let q_spatial_filter = match hold.constraint {
+                Some(_constraint) => {SpatialQueryFilter::new().without_entities([player_id]).without_entities([_constraint])},
+                None => {SpatialQueryFilter::new().without_entities([player_id])},
+            };
+            let t_entity = match q_spatial.project_point(
+                p_transform.translation.truncate(),
+                true,
+                q_spatial_filter
+            ) {
+                Some(_p_projection) => {Some(_p_projection.entity)},
+                None => {None},
+            };
+            match t_entity {
+                Some(_t_entity) => {
+                    if let Ok((
+                        t_transform, 
+                        mut t_linear_v, 
+                        t_mass
+                    )) = q_rigidbody.get_mut(_t_entity) 
+                    {
+                        let distance = t_transform.translation.truncate().distance(p_transform.translation.truncate());
+                        if distance <= 50. {
+                            let direction = (t_transform.translation - p_transform.translation).normalize().truncate();
+                            let delta_v = direction * engine.thrust * engine.throttle * 100. * delta_time;
+                            t_linear_v.0 += delta_v * p_mass.0 / t_mass.0;
+                            linear_v.0 += -delta_v   
+                        }
+                    }
+                },
+                None => {}
+            };
         }
     }
 }
@@ -299,6 +342,7 @@ fn camera_controller(
                     CameraMode::Fixed
                 }
                 CameraMode::Fixed => {
+                    c_transform.rotation = Quat::IDENTITY;
                     CameraMode::Follow
                 }
             }
