@@ -142,26 +142,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
     commands.spawn((
         Text2dBundle {
-            text: Text::from_section("÷\n÷÷÷\n÷÷÷÷÷\n÷÷÷÷÷÷÷\n÷÷÷÷÷\n÷÷÷\n÷", text_style.clone())
-                .with_alignment(text_alignment.clone()),
-            transform: Transform::from_xyz(-50., -50., 0.),
-            ..default()
-        },
-        RigidBody::Dynamic,
-        Collider::cuboid(20., 20.),
-        ColliderDensity(10000.),
-        GravityScale(0.),
-        GravitationalField {
-            g: 10.,
-            s: 1.,
-            h: 1000.,
-            r: 10000.
-        },
-        Hardness(500.),
-        ObjectMarker
-    ));
-    commands.spawn((
-        Text2dBundle {
             text: Text::from_section("N", text_style.clone())
                 .with_alignment(text_alignment.clone()),
             transform: Transform::from_xyz(-80., -80., 0.),
@@ -430,7 +410,7 @@ fn process_sas(
 fn process_gfield(
     q_planet: Query<(&Transform, &GravitationalField, &Mass, Entity)>,
     q_transform: Query<&Transform, Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
-    mut q_linearvelocity: Query<&mut LinearVelocity, Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    mut q_linear_velocity: Query<&mut LinearVelocity, Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
     q_spatial: SpatialQuery,
     time: Res<Time>
 ) {
@@ -442,7 +422,7 @@ fn process_gfield(
             SpatialQueryFilter::default().without_entities([p_entity])
         );
         for &t_entity in intersections.iter() {
-            if let (Ok(r_transform), Ok(mut linear_v)) = (q_transform.get_component::<Transform>(t_entity), q_linearvelocity.get_component_mut::<LinearVelocity>(t_entity)) {
+            if let (Ok(r_transform), Ok(mut linear_v)) = (q_transform.get_component::<Transform>(t_entity), q_linear_velocity.get_component_mut::<LinearVelocity>(t_entity)) {
                 let distance = p_transform.translation.truncate().distance(r_transform.translation.truncate()) * p_gfield.s + p_gfield.h;
                 let delta_v = p_gfield.g * p_mass.0 / distance.powf(2.) * time.delta_seconds();
                 linear_v.0 += (p_transform.translation.truncate() - r_transform.translation.truncate()).normalize() * delta_v;
@@ -454,33 +434,35 @@ fn process_gfield(
 fn process_destroy(
     mut commands: Commands,
     mut collision: EventReader<CollisionStarted>,
-    q_rigidbody: Query<(&Hardness, &LinearVelocity, &Mass), Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
+    mut q_rigidbody: Query<(&Hardness, &mut LinearVelocity, &Mass), Or<(With<ObjectMarker>, With<PlayerMarker>)>>,
     time: Res<Time>
 ) {
     for CollisionStarted(entity1, entity2) in collision.read() {
-        if let (
-            Ok(h1), 
-            Ok(v1), 
-            Ok(m1), 
-            Ok(h2), 
-            Ok(v2), 
-            Ok(m2)) = (
-                q_rigidbody.get_component::<Hardness>(*entity1), 
-                q_rigidbody.get_component::<LinearVelocity>(*entity1), 
-                q_rigidbody.get_component::<Mass>(*entity1), 
-                q_rigidbody.get_component::<Hardness>(*entity2), 
-                q_rigidbody.get_component::<LinearVelocity>(*entity2), 
-                q_rigidbody.get_component::<Mass>(*entity2)
-        ) {
-            let vt = 2. * (m1.0 * v1.0 + m2.0 * v2.0) / (m1.0 + m2.0);
-            let impulse = (vt - 2. * v1.0).length() * m1.0 * time.delta_seconds();
+        if let Ok([(
+            h1, 
+            mut v1, 
+            m1), (
+            h2, 
+            mut v2, 
+            m2)])
+             = q_rigidbody.get_many_mut([*entity1, *entity2]) 
+        {
+            let am = (m1.0 + m2.0) / 2.;
+            let p = m1.0 * v1.0 + m2.0 * v2.0;
+            let impulse = (p/am - 2. * v1.0).length() * m1.0 * time.delta_seconds();
+            if impulse >= h1.0 {
+                v2.0 = p/am - v2.0;
+            }
+            if impulse >= h2.0 {
+                v1.0 = p/am - v1.0;
+            }
             if impulse >= h1.0 {
                 commands.entity(*entity1).despawn();
             }
             if impulse >= h2.0 {
                 commands.entity(*entity2).despawn();
             }
-        };
+        }
     }
 }
 
