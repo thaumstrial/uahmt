@@ -3,6 +3,7 @@ use bevy::math::{uvec2, vec2, vec3};
 use bevy::prelude::*;
 use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged};
 use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile};
+use crate::living_entity::movement_system;
 
 #[derive(Component)]
 struct Layers(Vec<Entity>);
@@ -55,7 +56,20 @@ fn update_map(
 
     }
     for ev in mov.read() {
-
+        {
+            let old_pos = ev.old_pos;
+            let map_handle = maps.get(*layers.0.get(old_pos.z as usize).unwrap()).unwrap();
+            let map = materials.get_mut(map_handle).unwrap();
+            let mut m = map.indexer_mut();
+            m.set(old_pos.x, old_pos.y, ' ' as u32);
+        }
+        {
+            let new_pos = ev.new_pos;
+            let map_handle = maps.get(*layers.0.get(new_pos.z as usize).unwrap()).unwrap();
+            let map = materials.get_mut(map_handle).unwrap();
+            let mut m = map.indexer_mut();
+            m.set(new_pos.x, new_pos.y, '@' as u32);
+        }
     }
 }
 

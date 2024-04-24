@@ -27,6 +27,7 @@ fn main() {
         .add_plugins(ascii_world::AsciiWorldPlugin)
         .add_plugins(ascii_render::AsciiRenderPlugin)
         .add_plugins(player::PlayerPlugin)
+        .add_plugins(living_entity::LivingEntityPlugin)
         .add_plugins(debug::DebugPlugin)
         .add_systems(Startup, setup)
         .run();

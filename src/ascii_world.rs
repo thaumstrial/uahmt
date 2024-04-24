@@ -13,7 +13,11 @@ pub struct AsciiAddEvent {
 #[derive(Event)]
 pub struct AsciiRemoveEvent(Entity);
 #[derive(Event)]
-pub struct AsciiMoveEvent(Entity);
+pub struct AsciiMoveEvent {
+    pub entity: Entity,
+    pub old_pos: UVec3,
+    pub new_pos: UVec3
+}
 
 fn startup(
     mut event: EventWriter<AsciiAddEvent>,
