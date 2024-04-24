@@ -2,12 +2,13 @@ mod ascii_world;
 mod ascii_render;
 mod debug;
 mod player;
+mod living_entity;
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
 fn setup(mut commands: Commands) {
-    // commands.spawn(Text2dBundle {});
+
 }
 
 #[bevy_main]

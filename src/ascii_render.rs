@@ -1,93 +1,61 @@
+use std::fmt::Pointer;
+use bevy::math::{uvec2, vec2, vec3};
 use bevy::prelude::*;
-use bevy::render::mesh::{MeshVertexAttribute, MeshVertexBufferLayout};
-use bevy::render::render_resource::{AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError, VertexFormat};
-use bevy::sprite::{Material2d, Material2dKey, Material2dPlugin, MaterialMesh2dBundle, Mesh2dHandle};
-use crate::ascii_world::AsciiTile;
+use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged};
+use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile};
+
+#[derive(Component)]
+struct Layers(Vec<Entity>);
 
 fn startup(
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut materials: ResMut<Assets<Map>>,
 ) {
+    let tiles_texture = asset_server.load("atlas.png");
     commands.spawn(Camera2dBundle::default());
+    let mut layers: Vec<Entity> = Vec::new();
+    commands.spawn_empty()
+        .with_children(|parent| {
+            for z in 0..64u32 {
+                let map = Map::builder(
+                    uvec2(64, 64),
+                    tiles_texture.clone(),
+                    vec2(16., 16.),
+                ).build();
+                let child_id = parent.spawn(MapBundleManaged {
+                    material: materials.add(map),
+                    transform: Transform::default().with_translation(vec3(0., 0., z as f32)),
+                    ..default()
+                }).id();
+                layers.push(child_id);
+            }
+        })
+        .insert((Layers(layers), InheritedVisibility::VISIBLE, GlobalTransform::default()));
 }
 
-#[derive(Resource)]
-struct AsciiRenderSettings {
-    tile_size: UVec2,
-    atlas: Handle<Image>,
-    mesh: Mesh2dHandle,
-}
-impl FromWorld for AsciiRenderSettings {
-    fn from_world(world: &mut World) -> Self {
-        let atlas = world.get_resource::<AssetServer>().unwrap().load("atlas.png");
-        let mut meshes = world.get_resource_mut::<Assets<Mesh>>().unwrap();
-        let tile_size = UVec2::new(16, 16);
-        let mesh = Mesh2dHandle(meshes.add(
-            Mesh::from(Rectangle {
-                half_size: (tile_size / 2).as_vec2()
-            }))
-        );
-
-        Self {
-            tile_size,
-            atlas,
-            mesh
-        }
-    }
-}
-
-#[derive(Asset, TypePath, Debug, Clone, Default, AsBindGroup)]
-struct AsciiMaterial {
-    #[uniform(0)]
-    tile_size: UVec2,
-    #[uniform(1)]
-    ascii: u32,
-    #[texture(10)]
-    #[sampler(11)]
-    atlas: Handle<Image>,
-}
-impl Material2d for AsciiMaterial {
-    fn vertex_shader() -> ShaderRef {
-        "ascii.wgsl".into()
-    }
-
-    fn fragment_shader() -> ShaderRef {
-        "ascii.wgsl".into()
-    }
-
-    fn specialize(
-        descriptor: &mut RenderPipelineDescriptor,
-        layout: &MeshVertexBufferLayout,
-        key: Material2dKey<Self>
-    ) -> Result<(), SpecializedMeshPipelineError> {
-        let vertex_layout = layout.get_layout(&[
-            Mesh::ATTRIBUTE_POSITION.at_shader_location(0),
-        ])?;
-        descriptor.vertex.buffers = vec![vertex_layout];
-
-        Ok(())
-    }
-}
-
-fn add_shader(
-    mut commands: Commands,
-    q: Query<(Entity, &AsciiTile), (Without<Mesh2dHandle>, Without<Handle<AsciiMaterial>>)>,
-    settings: Res<AsciiRenderSettings>,
-    mut materials: ResMut<Assets<AsciiMaterial>>
+fn update_map(
+    mut add: EventReader<AsciiAddEvent>,
+    mut remove: EventReader<AsciiRemoveEvent>,
+    mut mov: EventReader<AsciiMoveEvent>,
+    mut materials: ResMut<Assets<Map>>,
+    maps: Query<&Handle<Map>>,
+    layers: Query<&Layers>
 ) {
-    for (entity, tile) in q.iter() {
-        let mesh = settings.mesh.clone();
-        let material = materials.add(AsciiMaterial {
-            tile_size: settings.tile_size,
-            ascii: '@' as u32,
-            atlas: settings.atlas.clone(),
-        });
-        let transform = Transform::from_translation(tile.pos.as_vec3());
-        commands.entity(entity).insert(MaterialMesh2dBundle {
-                mesh,
-                transform,
-                material,
-                ..default()
-            });
+
+    let layers = layers.single();
+    for ev in add.read() {
+        let pos = ev.pos;
+        let map_handle = maps.get(*layers.0.get(pos.z as usize).unwrap()).unwrap();
+        let map = materials.get_mut(map_handle).unwrap();
+        let mut m = map.indexer_mut();
+        m.set(pos.x, pos.y, '@' as u32);
+    }
+    for ev in remove.read() {
+
+    }
+    for ev in mov.read() {
+
     }
 }
 
@@ -95,10 +63,9 @@ pub struct AsciiRenderPlugin;
 impl Plugin for AsciiRenderPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_plugins(Material2dPlugin::<AsciiMaterial>::default())
             .add_systems(Startup, startup)
-            .add_systems(Update, add_shader)
-            .init_resource::<AsciiRenderSettings>()
+            .add_systems(Update, update_map)
+            .add_plugins(FastTileMapPlugin::default())
             .insert_resource(ClearColor(Color::BLACK));
     }
 }

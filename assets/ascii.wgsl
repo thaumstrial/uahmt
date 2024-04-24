@@ -2,7 +2,10 @@
 #import bevy_sprite::mesh2d_functions::{get_model_matrix, mesh2d_position_local_to_clip, mesh2d_position_local_to_world}
 
 @group(2) @binding(0) var<uniform> tile_size: vec2<u32>;
-@group(2) @binding(1) var<uniform> ascii: u32;
+@group(2) @binding(1) var<uniform> atlas_size: vec2<u32>;
+@group(2) @binding(2) var<uniform> texture_index: u32;
+@group(2) @binding(3) var<uniform> ft_color: vec4<f32>;
+@group(2) @binding(4) var<uniform> bg_color: vec4<f32>;
 @group(2) @binding(10) var atlas: texture_2d<f32>;
 @group(2) @binding(11) var atlas_sampler: sampler;
 
@@ -27,5 +30,16 @@ fn vertex(
 fn fragment(
     in: VertexOutput
 ) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.3, 0.2, 0.1, 1.0);
+
+    var atlas_x = f32(atlas_size.x);
+    var atlas_y = f32(atlas_size.y);
+    var index_i = f32(texture_index);
+    var tile_x = f32(tile_size.x);
+    var index_y = floor(index_i * tile_x / atlas_x);
+    var index_x = index_i * tile_x - index_y * atlas_x;
+    var texture_start = vec2<f32>(index_x, index_y * atlas_y);
+    var offset =
+
+    var color: vec4<f32> = textureSample(atlas, atlas_sampler, texture_start + offset);
+    return color;
 }
