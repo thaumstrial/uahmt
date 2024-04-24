@@ -1,6 +1,7 @@
 mod ascii_world;
 mod ascii_render;
 mod debug;
+mod player;
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
@@ -24,6 +25,7 @@ fn main() {
         )
         .add_plugins(ascii_world::AsciiWorldPlugin)
         .add_plugins(ascii_render::AsciiRenderPlugin)
+        .add_plugins(player::PlayerPlugin)
         .add_plugins(debug::DebugPlugin)
         .add_systems(Startup, setup)
         .run();
