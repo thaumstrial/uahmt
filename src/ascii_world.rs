@@ -5,6 +5,18 @@ pub struct AsciiTile {
     pub pos: UVec3,
 }
 
+#[derive(Resource)]
+pub struct WorldSettings {
+    pub size: UVec3
+}
+impl FromWorld for WorldSettings {
+    fn from_world(world: &mut World) -> Self {
+        Self {
+            size: UVec3::new(64, 64, 64)
+        }
+    }
+}
+
 #[derive(Event)]
 pub struct AsciiAddEvent {
     pub entity: Entity,
@@ -34,6 +46,7 @@ pub struct AsciiWorldPlugin;
 impl Plugin for AsciiWorldPlugin {
     fn build(&self, app: &mut App) {
         app
+            .init_resource::<WorldSettings>()
             .add_systems(Startup, startup)
             .add_event::<AsciiAddEvent>()
             .add_event::<AsciiRemoveEvent>()

@@ -4,7 +4,7 @@ use bevy::math::{uvec2, vec2, vec3};
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy_fast_tilemap::{CustomFastTileMapPlugin, FastTileMapPlugin, Map, MapBundleManaged};
-use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile};
+use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile, WorldSettings};
 use crate::living_entity::movement_system;
 
 #[derive(Component)]
@@ -14,15 +14,16 @@ fn startup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<Map<UserData>>>,
+    mut settings: Res<WorldSettings>
 ) {
     let tiles_texture = asset_server.load("atlas.png");
     commands.spawn(Camera2dBundle::default());
     let mut layers: Vec<Entity> = Vec::new();
     commands.spawn_empty()
         .with_children(|parent| {
-            for z in 0..64u32 {
+            for z in 0..settings.size.z {
                 let map = Map::<UserData>::builder(
-                    uvec2(64, 64),
+                    settings.size.xy(),
                     tiles_texture.clone(),
                     vec2(16., 16.),
                 )

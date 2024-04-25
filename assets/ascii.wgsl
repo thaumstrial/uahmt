@@ -38,8 +38,10 @@ fn fragment(
     var index_y = floor(index_i * tile_x / atlas_x);
     var index_x = index_i * tile_x - index_y * atlas_x;
     var texture_start = vec2<f32>(index_x, index_y * atlas_y);
-    var offset =
+    // 根据texture_start采样texture
+    var color = textureSample(atlas, atlas_sampler, texture_start / atlas_size, 0);
 
-    var color: vec4<f32> = textureSample(atlas, atlas_sampler, texture_start + offset);
+
+
     return color;
 }
