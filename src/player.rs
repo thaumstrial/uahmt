@@ -3,7 +3,7 @@ use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiTile};
 use crate::living_entity::Movement;
 
 #[derive(Component)]
-struct PlayerMarker;
+pub struct PlayerMarker;
 
 
 fn startup(

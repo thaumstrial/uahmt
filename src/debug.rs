@@ -1,6 +1,12 @@
+use bevy::asset::ron::de::Position;
 use bevy::prelude::*;
 use iyes_perf_ui::prelude::*;
 use bevy::diagnostic::*;
+use bevy::ecs::system::lifetimeless::SQuery;
+use bevy::ecs::system::SystemParam;
+use iyes_perf_ui::utils::next_sort_key;
+use crate::ascii_world::AsciiTile;
+use crate::player::{PlayerMarker, PlayerPlugin};
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 enum DebugState {
@@ -13,6 +19,55 @@ struct EnableDebugEvent;
 #[derive(Event)]
 struct DisableDebugEvent;
 
+#[derive(Component, Debug, Clone)]
+pub struct PerfUiEntryPlayerPosition {
+    pub label: String,
+    pub separator: &'static str,
+    pub position: Option<UVec3>,
+    pub width: u8,
+    pub sort_key: i32,
+}
+impl Default for PerfUiEntryPlayerPosition {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            separator: ", ",
+            position: None,
+            width: 20,
+            sort_key: next_sort_key(),
+        }
+    }
+}
+impl PerfUiEntry for PerfUiEntryPlayerPosition {
+    type SystemParam = (SQuery<&'static AsciiTile, With<PlayerMarker>>);
+    type Value = UVec3;
+    fn label(&self) -> &str {
+        if self.label.is_empty() {
+            "Player Position"
+        } else {
+            &self.label
+        }
+    }
+    fn update_value(&self, tile: &mut <Self::SystemParam as SystemParam>::Item<'_, '_>) -> Option<Self::Value> {
+        if let Ok(tile) = tile.get_single() {
+            Some(tile.pos)
+        } else {
+            None
+        }
+    }
+    fn sort_key(&self) -> i32 {
+        self.sort_key
+    }
+    fn format_value(
+        &self,
+        value: &Self::Value,
+    ) -> String {
+        format!(
+            "X: {}{}Y: {}{}Z: {}",
+            value.x, self.separator, value.y, self.separator, value.z
+        )
+    }
+}
 
 fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -44,7 +99,7 @@ fn show_perf_ui(mut commands: Commands, mut enable_debug: EventReader<EnableDebu
             PerfUiEntryEntityCount::default(),
             PerfUiEntryWindowResolution::default(),
             PerfUiEntryCursorPosition::default(),
-
+            PerfUiEntryPlayerPosition::default()
         ));
     }
 }
@@ -61,6 +116,7 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_perf_ui_entry_type::<PerfUiEntryPlayerPosition>()
             .add_plugins(PerfUiPlugin)
             .add_plugins(FrameTimeDiagnosticsPlugin)
             .add_plugins(EntityCountDiagnosticsPlugin)
