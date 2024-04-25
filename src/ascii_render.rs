@@ -139,7 +139,7 @@ impl Plugin for AsciiRenderPlugin {
                         var tile_start = atlas_index_to_position(tile_index);
                         // Offset in pixels from tile_start to sample from
                         var rect_offset = tile_offset + map.tile_anchor_point * map.tile_size;
-                        var total_offset = tile_start + rect_offset;
+                        var total_offset = tile_start + floor(rect_offset);
 
                         // At most half of the inner "padding" is still rendered
                         // as overhang of any given tile.
