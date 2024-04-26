@@ -3,6 +3,7 @@ use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::math::{uvec2, vec2, vec3};
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
+use bevy::utils::tracing::Instrument;
 use bevy_fast_tilemap::{CustomFastTileMapPlugin, FastTileMapPlugin, Map, MapBundleManaged};
 use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile, WorldSettings};
 use crate::player::PlayerMarker;
@@ -11,7 +12,8 @@ use crate::player::PlayerMarker;
 struct Layers(Vec<Entity>);
 #[derive(Component)]
 pub struct ViewLayer(pub u32);
-
+#[derive(Event)]
+pub struct UpdateViewLayerEvent(pub u32);
 
 fn startup(
     mut commands: Commands,
@@ -107,7 +109,8 @@ fn camera_control(
         &Camera,
         &mut OrthographicProjection,
         &mut ViewLayer
-    )>
+    )>,
+    mut update_view_layer: EventWriter<UpdateViewLayerEvent>,
 ) {
     if key.pressed(KeyCode::ControlLeft) {
         for event in mouse_motion_events.read() {
@@ -144,6 +147,27 @@ fn camera_control(
             } else if wheel_y <= -1. && view.0 > 0{
                 view.0 -= 1;
             }
+            update_view_layer.send(UpdateViewLayerEvent(view.0));
+        }
+    }
+}
+
+fn update_visibility(
+    settings: Res<WorldSettings>,
+    mut commands: Commands,
+    mut update: EventReader<UpdateViewLayerEvent>,
+    layers: Query<&Layers>
+) {
+    if let Ok(layers) = layers.get_single() {
+        for ev in update.read() {
+            for i in  0..ev.0 + 1 {
+                let entity = *layers.0.get(i as usize).unwrap();
+                commands.entity(entity).insert(InheritedVisibility::VISIBLE);
+            }
+            for i in  ev.0 + 1..settings.size.z {
+                let entity = *layers.0.get(i as usize).unwrap();
+                commands.entity(entity).insert(InheritedVisibility::HIDDEN);
+            }
         }
     }
 }
@@ -158,12 +182,14 @@ pub struct AsciiRenderPlugin;
 impl Plugin for AsciiRenderPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_event::<UpdateViewLayerEvent>()
             .add_systems(PostStartup, startup)
             .add_systems(Update, (
                 add_event_reader,
                 move_event_reader
                 ))
             .add_systems(Update, camera_control)
+            .add_systems(Update, update_visibility)
             .add_plugins(CustomFastTileMapPlugin::<UserData> {
                 user_code: Some(
                     r#"
