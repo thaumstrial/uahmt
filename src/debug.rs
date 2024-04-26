@@ -5,6 +5,7 @@ use bevy::diagnostic::*;
 use bevy::ecs::system::lifetimeless::SQuery;
 use bevy::ecs::system::SystemParam;
 use iyes_perf_ui::utils::next_sort_key;
+use crate::ascii_render::ViewLayer;
 use crate::ascii_world::AsciiTile;
 use crate::player::{PlayerMarker, PlayerPlugin};
 
@@ -68,6 +69,53 @@ impl PerfUiEntry for PerfUiEntryPlayerPosition {
         )
     }
 }
+#[derive(Component, Debug, Clone)]
+pub struct PerfUiEntryViewLayer {
+    pub label: String,
+    pub position: Option<UVec3>,
+    pub width: u8,
+    pub sort_key: i32,
+}
+impl Default for crate::debug::PerfUiEntryViewLayer {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            position: None,
+            width: 8,
+            sort_key: next_sort_key(),
+        }
+    }
+}
+impl PerfUiEntry for PerfUiEntryViewLayer {
+    type SystemParam = (SQuery<&'static ViewLayer>);
+    type Value = u32;
+    fn label(&self) -> &str {
+        if self.label.is_empty() {
+            "View Layer"
+        } else {
+            &self.label
+        }
+    }
+    fn update_value(&self, tile: &mut <Self::SystemParam as SystemParam>::Item<'_, '_>) -> Option<Self::Value> {
+        if let Ok(view) = tile.get_single() {
+            Some(view.0)
+        } else {
+            None
+        }
+    }
+    fn sort_key(&self) -> i32 {
+        self.sort_key
+    }
+    fn format_value(
+        &self,
+        value: &Self::Value,
+    ) -> String {
+        format!(
+            "{}",
+            value
+        )
+    }
+}
 
 fn keyboard_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -99,7 +147,8 @@ fn show_perf_ui(mut commands: Commands, mut enable_debug: EventReader<EnableDebu
             PerfUiEntryEntityCount::default(),
             PerfUiEntryWindowResolution::default(),
             PerfUiEntryCursorPosition::default(),
-            PerfUiEntryPlayerPosition::default()
+            PerfUiEntryPlayerPosition::default(),
+            PerfUiEntryViewLayer::default()
         ));
     }
 }
@@ -117,6 +166,7 @@ impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_perf_ui_entry_type::<PerfUiEntryPlayerPosition>()
+            .add_perf_ui_entry_type::<PerfUiEntryViewLayer>()
             .add_plugins(PerfUiPlugin)
             .add_plugins(FrameTimeDiagnosticsPlugin)
             .add_plugins(EntityCountDiagnosticsPlugin)

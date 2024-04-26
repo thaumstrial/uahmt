@@ -6,18 +6,25 @@ use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy_fast_tilemap::{CustomFastTileMapPlugin, FastTileMapPlugin, Map, MapBundleManaged};
 use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile, WorldSettings};
 use crate::living_entity::movement_system;
+use crate::player::PlayerMarker;
 
 #[derive(Component)]
 struct Layers(Vec<Entity>);
+#[derive(Component)]
+pub struct ViewLayer(pub u32);
+
 
 fn startup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut materials: ResMut<Assets<Map<UserData>>>,
-    mut settings: Res<WorldSettings>
+    mut settings: Res<WorldSettings>,
+    player_query: Query<&AsciiTile, With<PlayerMarker>>
 ) {
     let tiles_texture = asset_server.load("atlas.png");
-    commands.spawn(Camera2dBundle::default());
+    if let Ok(tile) =  player_query.get_single() {
+        commands.spawn(Camera2dBundle::default()).insert(ViewLayer(tile.pos.z));
+    }
     let mut layers: Vec<Entity> = Vec::new();
     commands.spawn_empty()
         .with_children(|parent| {
@@ -78,8 +85,10 @@ fn update_map(
     }
 }
 
-fn zoom_camera(
+fn camera_control(
+    key: Res<ButtonInput<KeyCode>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
+    settings: Res<WorldSettings>,
     mut mouse_motion_events: EventReader<MouseMotion>,
     mut mouse_wheel_events: EventReader<MouseWheel>,
     mut camera_query: Query<(
@@ -87,28 +96,44 @@ fn zoom_camera(
         &mut Transform,
         &Camera,
         &mut OrthographicProjection,
-    )>,
+        &mut ViewLayer
+    )>
 ) {
-    for event in mouse_motion_events.read() {
-        if mouse_button.pressed(MouseButton::Left) || mouse_button.pressed(MouseButton::Right) {
-            for (_, mut transform, _, _) in camera_query.iter_mut() {
-                transform.translation.x -= event.delta.x * transform.scale.x;
-                transform.translation.y += event.delta.y * transform.scale.y;
+    if key.pressed(KeyCode::ControlLeft) {
+        for event in mouse_motion_events.read() {
+            if mouse_button.pressed(MouseButton::Left) || mouse_button.pressed(MouseButton::Right) {
+                for (_, mut transform, _, _, _) in camera_query.iter_mut() {
+                    transform.translation.x -= event.delta.x * transform.scale.x;
+                    transform.translation.y += event.delta.y * transform.scale.y;
+                }
             }
         }
-    }
-    let mut wheel_y = 0.;
-    for event in mouse_wheel_events.read() {
-        wheel_y += event.y;
-    }
-    if wheel_y != 0. {
-        for (_, mut transform, _, mut _ortho) in camera_query.iter_mut() {
-            let factor = f32::powf(2., -wheel_y / 2.);
-            transform.scale *= vec3(factor, factor, 1.0);
-            transform.scale = transform
-                .scale
-                .max(Vec3::splat(1. / 128.))
-                .min(Vec3::splat(128.));
+        let mut wheel_y = 0.;
+        for event in mouse_wheel_events.read() {
+            wheel_y += event.y;
+        }
+        if wheel_y != 0. {
+            for (_, mut transform, _, mut _ortho, _) in camera_query.iter_mut() {
+                let factor = f32::powf(2., -wheel_y / 2.);
+                transform.scale *= vec3(factor, factor, 1.0);
+                transform.scale = transform
+                    .scale
+                    .max(Vec3::splat(1. / 128.))
+                    .min(Vec3::splat(128.));
+            }
+        }
+    } else {
+        for (_,  _, _,  _, mut view) in camera_query.iter_mut() {
+            let mut wheel_y = 0.;
+            for event in mouse_wheel_events.read() {
+                wheel_y += event.y;
+            }
+            wheel_y = wheel_y.floor();
+            if wheel_y >= 1. && view.0 < settings.size.z - 1 {
+                view.0 += 1;
+            } else if wheel_y <= -1. && view.0 > 0{
+                view.0 -= 1;
+            }
         }
     }
 }
@@ -123,9 +148,9 @@ pub struct AsciiRenderPlugin;
 impl Plugin for AsciiRenderPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_systems(Startup, startup)
+            .add_systems(PostStartup, startup)
             .add_systems(Update, update_map)
-            .add_systems(Update, zoom_camera)
+            .add_systems(Update, camera_control)
             .add_plugins(CustomFastTileMapPlugin::<UserData> {
                 user_code: Some(
                     r#"
