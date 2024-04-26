@@ -5,7 +5,6 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy_fast_tilemap::{CustomFastTileMapPlugin, FastTileMapPlugin, Map, MapBundleManaged};
 use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile, WorldSettings};
-use crate::living_entity::movement_system;
 use crate::player::PlayerMarker;
 
 #[derive(Component)]
@@ -47,10 +46,9 @@ fn startup(
         .insert((Layers(layers), InheritedVisibility::VISIBLE, GlobalTransform::default()));
 }
 
-fn update_map(
+fn add_event_reader(
     mut add: EventReader<AsciiAddEvent>,
-    mut remove: EventReader<AsciiRemoveEvent>,
-    mut mov: EventReader<AsciiMoveEvent>,
+    mut mov: EventWriter<AsciiMoveEvent>,
     mut materials: ResMut<Assets<Map<UserData>>>,
     maps: Query<&Handle<Map<UserData>>>,
     layers: Query<&Layers>
@@ -63,10 +61,22 @@ fn update_map(
         let map = materials.get_mut(map_handle).unwrap();
         let mut m = map.indexer_mut();
         m.set(pos.x, pos.y, '@' as u32);
+        // TODO: fix init rendering
+        mov.send(AsciiMoveEvent {
+            entity: ev.entity,
+            old_pos: pos,
+            new_pos: pos,
+        });
     }
-    for ev in remove.read() {
+}
+fn move_event_reader(
+    mut mov: EventReader<AsciiMoveEvent>,
+    mut materials: ResMut<Assets<Map<UserData>>>,
+    maps: Query<&Handle<Map<UserData>>>,
+    layers: Query<&Layers>
+) {
 
-    }
+    let layers = layers.single();
     for ev in mov.read() {
         {
             let old_pos = ev.old_pos;
@@ -149,7 +159,10 @@ impl Plugin for AsciiRenderPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(PostStartup, startup)
-            .add_systems(Update, update_map)
+            .add_systems(Update, (
+                add_event_reader,
+                move_event_reader
+                ))
             .add_systems(Update, camera_control)
             .add_plugins(CustomFastTileMapPlugin::<UserData> {
                 user_code: Some(
@@ -164,8 +177,8 @@ impl Plugin for AsciiRenderPlugin {
 
                         var tile_start = atlas_index_to_position(tile_index);
                         // Offset in pixels from tile_start to sample from
-                        var rect_offset = tile_offset + map.tile_anchor_point * map.tile_size;
-                        var total_offset = tile_start + floor(rect_offset);
+                        var rect_offset = floor(tile_offset) + map.tile_anchor_point * map.tile_size;
+                        var total_offset = tile_start + rect_offset;
 
                         // At most half of the inner "padding" is still rendered
                         // as overhang of any given tile.
