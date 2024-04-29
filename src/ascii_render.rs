@@ -45,7 +45,7 @@ fn startup(
                 layers.push(child_id);
             }
         })
-        .insert((Layers(layers), InheritedVisibility::VISIBLE, GlobalTransform::default()));
+        .insert((Layers(layers), InheritedVisibility::HIDDEN, GlobalTransform::default()));
 }
 
 fn add_event_reader(
@@ -62,7 +62,7 @@ fn add_event_reader(
         let map_handle = maps.get(*layers.0.get(pos.z as usize).unwrap()).unwrap();
         let map = materials.get_mut(map_handle).unwrap();
         let mut m = map.indexer_mut();
-        m.set(pos.x, pos.y, '@' as u32);
+        m.set(pos.x, pos.y, '@' as u32, Color::WHITE, Color::BLACK);
         // TODO: fix init rendering
         mov.send(AsciiMoveEvent {
             entity: ev.entity,
@@ -85,14 +85,14 @@ fn move_event_reader(
             let map_handle = maps.get(*layers.0.get(old_pos.z as usize).unwrap()).unwrap();
             let map = materials.get_mut(map_handle).unwrap();
             let mut m = map.indexer_mut();
-            m.set(old_pos.x, old_pos.y, ' ' as u32);
+            m.set(old_pos.x, old_pos.y, ' ' as u32, Color::NONE, Color::NONE);
         }
         {
             let new_pos = ev.new_pos;
             let map_handle = maps.get(*layers.0.get(new_pos.z as usize).unwrap()).unwrap();
             let map = materials.get_mut(map_handle).unwrap();
             let mut m = map.indexer_mut();
-            m.set(new_pos.x, new_pos.y, '@' as u32);
+            m.set(new_pos.x, new_pos.y, '@' as u32, Color::PINK, Color::NONE);
         }
     }
 }
@@ -165,10 +165,11 @@ fn update_visibility(
             for i in  0..settings.size.z {
                 let map_handle = maps.get(*layers.0.get(i as usize).unwrap()).unwrap();
                 let mut map = materials.get_mut(map_handle).unwrap();
+                let mut layer = commands.entity(*layers.0.get(i as usize).unwrap());
                 if i <= ev.0 {
-                    map.user_data = UserData { alpha: (i + 5) as f32 / (ev.0 + 5) as f32 };
+                    map.user_data.alpha = (i + 5) as f32 / (ev.0 + 5) as f32 ;
                 } else {
-                    map.user_data = UserData { alpha: 0.0 };
+                    map.user_data.alpha = 0.0;
                 }
             }
         }
@@ -203,6 +204,12 @@ impl Plugin for AsciiRenderPlugin {
                         var tile_index = in.tile_index;
                         var tile_position = in.tile_position;
                         var tile_offset = in.tile_offset;
+                        var tile_ft_color = get_tile_ft_color(tile_position);
+                        var tile_bg_color = get_tile_bg_color(tile_position);
+
+                        if tile_index == 0 {
+                            return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+                        }
 
                         var tile_start = atlas_index_to_position(tile_index);
                         // Offset in pixels from tile_start to sample from
@@ -227,6 +234,11 @@ impl Plugin for AsciiRenderPlugin {
                         var color = textureSample(
                             atlas_texture, atlas_sampler, total_offset / map.atlas_size
                         );
+                        if color.a == 0.0 {
+                            color = tile_bg_color;
+                        } else {
+                            color *= tile_ft_color;
+                        }
                         color *= vec4<f32>(1.0, 1.0, 1.0, user_data.alpha);
                         return color;
                     }

@@ -8,7 +8,8 @@ edition = "2021"
 # Remember to revert this before releasing your game!
 [dependencies]
 bevy = { version = "0.13.2"}
-bevy_fast_tilemap = "0.7.3"
+#bevy_fast_tilemap = "0.7.3"
+bevy_fast_tilemap = {path = "../bevy-fast-tilemap"}
 #bevy_ecs_tilemap = {path = "../bevy_ecs_tilemap"}
 iyes_perf_ui = "0.2"
 #bevy_xpbd_2d = "0.4.2"

@@ -516,8 +516,6 @@ dependencies = [
 [[package]]
 name = "bevy_fast_tilemap"
 version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66d4a38ef349d1a7b8d307d07525b35d00c017e3e15f30400a381c1c3d552667"
 dependencies = [
  "bevy",
  "num",
