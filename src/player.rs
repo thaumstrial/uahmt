@@ -11,7 +11,7 @@ fn startup(
     mut event: EventWriter<AsciiAddEvent>,
 ) {
     let entity = commands.spawn((
-        AsciiTile {pos: UVec3::new(30, 30, 0) },
+        AsciiTile {pos: UVec3::new(30, 30, 2) },
         Movement {
             v: 20.,
             d: Vec3::ZERO
@@ -20,7 +20,7 @@ fn startup(
     )).id();
     event.send(AsciiAddEvent {
         entity,
-        pos: UVec3::new(30, 30, 0)
+        pos: UVec3::new(30, 30, 2)
     });
 }
 

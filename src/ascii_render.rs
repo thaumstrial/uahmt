@@ -35,7 +35,7 @@ fn startup(
                     tiles_texture.clone(),
                     vec2(16., 16.),
                 )
-                    .with_user_data(UserData {test: 0})
+                    .with_user_data(UserData { alpha: 1.})
                     .build();
                 let child_id = parent.spawn(MapBundleManaged::<UserData> {
                     material: materials.add(map),
@@ -156,17 +156,20 @@ fn update_visibility(
     settings: Res<WorldSettings>,
     mut commands: Commands,
     mut update: EventReader<UpdateViewLayerEvent>,
+    mut materials: ResMut<Assets<Map<UserData>>>,
+    maps: Query<&Handle<Map<UserData>>>,
     layers: Query<&Layers>
 ) {
     if let Ok(layers) = layers.get_single() {
         for ev in update.read() {
-            for i in  0..ev.0 + 1 {
-                let entity = *layers.0.get(i as usize).unwrap();
-                commands.entity(entity).insert(InheritedVisibility::VISIBLE);
-            }
-            for i in  ev.0 + 1..settings.size.z {
-                let entity = *layers.0.get(i as usize).unwrap();
-                commands.entity(entity).insert(InheritedVisibility::HIDDEN);
+            for i in  0..settings.size.z {
+                let map_handle = maps.get(*layers.0.get(i as usize).unwrap()).unwrap();
+                let mut map = materials.get_mut(map_handle).unwrap();
+                if i <= ev.0 {
+                    map.user_data = UserData { alpha: (i + 5) as f32 / (ev.0 + 5) as f32 };
+                } else {
+                    map.user_data = UserData { alpha: 0.0 };
+                }
             }
         }
     }
@@ -174,7 +177,7 @@ fn update_visibility(
 
 #[derive(Debug, Clone, Default, Reflect, AsBindGroup, ShaderType)]
 struct UserData {
-    test: u32
+    alpha: f32
 }
 
 
@@ -194,7 +197,7 @@ impl Plugin for AsciiRenderPlugin {
                 user_code: Some(
                     r#"
                     struct UserData {
-                        test: u32
+                        alpha: f32
                     };
                     fn sample_tile(in: ExtractIn) -> vec4<f32> {
                         var tile_index = in.tile_index;
@@ -221,9 +224,11 @@ impl Plugin for AsciiRenderPlugin {
                             return vec4<f32>(0.0, 0.0, 0.0, 0.0);
                         }
 
-                        return textureSample(
+                        var color = textureSample(
                             atlas_texture, atlas_sampler, total_offset / map.atlas_size
                         );
+                        color *= vec4<f32>(1.0, 1.0, 1.0, user_data.alpha);
+                        return color;
                     }
                     "#.to_string(),
                 ),
