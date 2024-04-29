@@ -70,13 +70,7 @@ fn add_event_reader(
         let map_handle = maps.get(*layers.0.get(pos.z as usize).unwrap()).unwrap();
         let map = materials.get_mut(map_handle).unwrap();
         let mut m = map.indexer_mut();
-        m.set(pos.x, pos.y, '@' as u32, Color::WHITE, Color::BLACK);
-        // TODO: fix init rendering
-        mov.send(AsciiMoveEvent {
-            entity: ev.entity,
-            old_pos: pos,
-            new_pos: pos,
-        });
+        m.set(pos.x, pos.y, '@' as u32, Color::PINK, Color::NONE);
     }
 }
 fn move_event_reader(
