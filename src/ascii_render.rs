@@ -36,7 +36,15 @@ fn startup(
                     vec2(16., 16.),
                 )
                     .with_user_data(UserData { alpha: 1.})
-                    .build();
+                    .build_and_initialize(
+                        |m| {
+                            for y in 0..m.size().y {
+                                for x in 0..m.size().y {
+                                    m.set(x, y, ' ' as u32, Color::NONE, Color::NONE);
+                                }
+                            }
+                        }
+                    );
                 let child_id = parent.spawn(MapBundleManaged::<UserData> {
                     material: materials.add(map),
                     transform: Transform::default().with_translation(vec3(0., 0., z as f32)),
@@ -206,10 +214,6 @@ impl Plugin for AsciiRenderPlugin {
                         var tile_offset = in.tile_offset;
                         var tile_ft_color = get_tile_ft_color(tile_position);
                         var tile_bg_color = get_tile_bg_color(tile_position);
-
-                        if tile_index == 0 {
-                            return vec4<f32>(0.0, 0.0, 0.0, 0.0);
-                        }
 
                         var tile_start = atlas_index_to_position(tile_index);
                         // Offset in pixels from tile_start to sample from
