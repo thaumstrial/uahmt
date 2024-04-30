@@ -5,6 +5,8 @@ use crate::ascii_render::{AsciiAtlas, UserData};
 use crate::MainState;
 use std::convert::TryFrom;
 use std::time::Duration;
+use bevy::app::AppExit;
+use bevy::prelude::KeyCode::KeyC;
 use rand::Rng;
 
 #[derive(Component)]
@@ -19,6 +21,136 @@ enum MainMenuState {
     New,
     Load,
     Setting,
+    Exit
+}
+
+fn draw_selected(
+    state: Res<State<MainMenuState>>,
+    mut materials: ResMut<Assets<Map<UserData>>>,
+    maps: Query<&Handle<Map<UserData>>>,
+) {
+    let tiles = "     Continue     Connect     New      Load      Setting    Exit   ".chars().collect::<Vec<_>>();
+    let map = materials.get_mut(maps.get_single().unwrap()).unwrap();
+    let mut m = map.indexer_mut();
+    let y = 11u32;
+    let ft_color = Color::BLUE;
+    let bg_color = Color::WHITE;
+    for x in 0..m.size().x {
+        m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, Color::WHITE, Color::NONE);
+    }
+    match state.get() {
+        MainMenuState::Continue => {
+            for x in 5..13u32 {
+                m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, ft_color, bg_color);
+            }
+        }
+        MainMenuState::Connect => {
+            for x in 18..25u32 {
+                m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, ft_color, bg_color);
+            }
+        }
+        MainMenuState::New => {
+            for x in 30..33u32 {
+                m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, ft_color, bg_color);
+            }
+        }
+        MainMenuState::Load => {
+            for x in 39..43u32 {
+                m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, ft_color, bg_color);
+            }
+        }
+        MainMenuState::Setting => {
+            for x in 49..56u32 {
+                m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, ft_color, bg_color);
+            }
+        }
+        MainMenuState::Exit => {
+            for x in 60..64u32 {
+                m.set(x, y, tiles[usize::try_from(x).unwrap()] as u32, ft_color, bg_color);
+            }
+        }
+    }
+}
+
+fn confirm_selected(
+    key: Res<ButtonInput<KeyCode>>,
+    state: Res<State<MainMenuState>>,
+    mut exit: EventWriter<AppExit>
+) {
+    if key.just_pressed(KeyCode::Enter) {
+        match state.get() {
+            MainMenuState::Continue => {
+
+            }
+            MainMenuState::Connect => {
+
+            }
+            MainMenuState::New => {
+
+            }
+            MainMenuState::Load => {
+
+            }
+            MainMenuState::Setting => {
+
+            }
+            MainMenuState::Exit => {
+                exit.send(AppExit);
+            }
+        }
+
+    }
+}
+
+fn change_selected(
+    key: Res<ButtonInput<KeyCode>>,
+    mut state: ResMut<State<MainMenuState>>,
+    mut next_state: ResMut<NextState<MainMenuState>>,
+) {
+    if key.just_pressed(KeyCode::Tab) || key.just_pressed(KeyCode::KeyD) || key.just_pressed(KeyCode::ArrowRight) {
+        match state.get() {
+            MainMenuState::Continue => {
+                next_state.set(MainMenuState::Connect);
+            }
+            MainMenuState::Connect => {
+                next_state.set(MainMenuState::New);
+            }
+            MainMenuState::New => {
+                next_state.set(MainMenuState::Load);
+            }
+            MainMenuState::Load => {
+                next_state.set(MainMenuState::Setting);
+            }
+            MainMenuState::Setting => {
+                next_state.set(MainMenuState::Exit)
+            }
+            MainMenuState::Exit => {
+                next_state.set(MainMenuState::Continue);
+            }
+        }
+    }
+    if key.just_pressed(KeyCode::KeyA) || key.just_pressed(KeyCode::ArrowLeft) {
+        match state.get() {
+            MainMenuState::Continue => {
+                next_state.set(MainMenuState::Exit);
+            }
+            MainMenuState::Exit => {
+                next_state.set(MainMenuState::Setting);
+            }
+            MainMenuState::Setting => {
+                next_state.set(MainMenuState::Load);
+            }
+            MainMenuState::Load => {
+                next_state.set(MainMenuState::New);
+            }
+            MainMenuState::New => {
+                next_state.set(MainMenuState::Connect)
+            }
+            MainMenuState::Connect => {
+                next_state.set(MainMenuState::Continue);
+            }
+        }
+    }
 }
 
 fn banner_effect(
@@ -42,7 +174,15 @@ fn banner_effect(
             let mut rng = rand::thread_rng();
             let map = materials.get_mut(maps.get_single().unwrap()).unwrap();
             let mut m = map.indexer_mut();
-            m.set_uvec(tiles.0[rng.gen_range(0..tiles.0.len())], rng_tile.chars().nth(rng.gen_range(0..rng_tile.len())).unwrap() as u32, rng_color[rng.gen_range(0..rng_color.len())], Color::BLACK);
+            let r_pos = tiles.0[rng.gen_range(0..tiles.0.len())];
+            if rng.gen_bool(0.5) {
+                let r_tile = rng_tile.chars().nth(rng.gen_range(0..rng_tile.len())).unwrap() as u32;
+                m.set_uvec(r_pos, r_tile, Color::WHITE, Color::BLACK);
+            } else {
+                let r_color = rng_color[rng.gen_range(0..rng_color.len())];
+                m.set_uvec(r_pos, m.at_uvec(r_pos), r_color, Color::BLACK);
+            }
+
         }
     }
 }
@@ -63,7 +203,7 @@ fn draw_main_menu(
         "     Y8b,____,d88,,d8,   ,d8b,,d8     I8,,dP   8I   8I   Yb,,d88b, ".chars().collect::<Vec<_>>(),
         "      \"Y888888P\"Y8P\"Y8888P\"`Y888P     `Y88P'   8I   8I   `Y88P\"\"Y8 ".chars().collect::<Vec<_>>(),
         "                                                                   ".chars().collect::<Vec<_>>(),
-        "     Continue      Connect     New        Load       Setting       ".chars().collect::<Vec<_>>(),
+        "     Continue     Connect     New      Load      Setting    Exit   ".chars().collect::<Vec<_>>(),
         "                                                                   ".chars().collect::<Vec<_>>(),
     ];
 
@@ -93,7 +233,7 @@ fn draw_main_menu(
         transform: Transform::default().with_translation(vec3(0., 0., 0.)),
         ..default()
     })
-        .insert(UpdateTime(Timer::new(Duration::from_millis(500), TimerMode::Repeating)))
+        .insert(UpdateTime(Timer::new(Duration::from_millis(50), TimerMode::Repeating)))
         .insert(BannerTiles(banner_tiles));
 }
 
@@ -103,6 +243,9 @@ impl Plugin for UiPlugin {
         app
             .init_state::<MainMenuState>()
             .add_systems(OnEnter(MainState::MainMenu), draw_main_menu)
-            .add_systems(Update, banner_effect.run_if(in_state(MainState::MainMenu)));
+            .add_systems(Update, draw_selected.run_if(state_changed::<MainMenuState>))
+            .add_systems(Update, banner_effect.run_if(in_state(MainState::MainMenu)))
+            .add_systems(Update, change_selected.run_if(in_state(MainState::MainMenu)))
+            .add_systems(Update, confirm_selected.run_if(in_state(MainState::MainMenu)));
     }
 }
