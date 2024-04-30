@@ -53,7 +53,7 @@ impl Plugin for AsciiWorldPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<WorldSettings>()
-            .add_systems(Startup, startup)
+            // .add_systems(Startup, startup)
             .add_event::<AsciiAddEvent>()
             .add_event::<AsciiRemoveEvent>()
             .add_event::<AsciiMoveEvent>();

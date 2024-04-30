@@ -12,6 +12,10 @@ bevy = { version = "0.13.2"}
 bevy_fast_tilemap = {path = "../bevy-fast-tilemap"}
 #bevy_ecs_tilemap = {path = "../bevy_ecs_tilemap"}
 iyes_perf_ui = "0.2"
+noise = "0.9.0"
+rand = "0.8.5"
+#ron = "0.8.1"
+#serde = "1.0.199"
 #bevy_xpbd_2d = "0.4.2"
 
 # Enable a small amount of optimization in debug mode

@@ -6,6 +6,7 @@ use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::utils::tracing::Instrument;
 use bevy_fast_tilemap::{CustomFastTileMapPlugin, FastTileMapPlugin, Map, MapBundleManaged};
 use crate::ascii_world::{AsciiAddEvent, AsciiMoveEvent, AsciiRemoveEvent, AsciiTile, WorldSettings};
+use crate::MainState;
 use crate::player::PlayerMarker;
 
 #[derive(Component)]
@@ -14,31 +15,41 @@ struct Layers(Vec<Entity>);
 pub struct ViewLayer(pub u32);
 #[derive(Event)]
 pub struct UpdateViewLayerEvent(pub u32);
+#[derive(Resource)]
+pub struct AsciiAtlas(pub(crate) Handle<Image>);
+impl FromWorld for AsciiAtlas {
+    fn from_world(world: &mut World) -> Self {
+        Self (
+            world.get_resource::<AssetServer>().unwrap().load("atlas.png")
+        )
+    }
+}
 
 fn startup(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+) {
+    commands.spawn(Camera2dBundle::default()).insert(ViewLayer(0));
+}
+
+fn add_layers(
+    mut commands: Commands,
+    ascii_atlas: Res<AsciiAtlas>,
     mut materials: ResMut<Assets<Map<UserData>>>,
     mut settings: Res<WorldSettings>,
-    player_query: Query<&AsciiTile, With<PlayerMarker>>
 ) {
-    let tiles_texture = asset_server.load("atlas.png");
-    if let Ok(tile) =  player_query.get_single() {
-        commands.spawn(Camera2dBundle::default()).insert(ViewLayer(tile.pos.z));
-    }
     let mut layers: Vec<Entity> = Vec::new();
     commands.spawn_empty()
         .with_children(|parent| {
             for z in 0..settings.size.z {
                 let map = Map::<UserData>::builder(
                     settings.size.xy(),
-                    tiles_texture.clone(),
+                    ascii_atlas.0.clone(),
                     vec2(16., 16.),
                 )
                     .with_user_data(UserData { alpha: 1.})
                     .build_and_initialize(
                         |m| {
-                            for y in 0..m.size().y {
+                            for y in 0..m.size().x {
                                 for x in 0..m.size().y {
                                     m.set(x, y, ' ' as u32, Color::NONE, Color::NONE);
                                 }
@@ -53,12 +64,11 @@ fn startup(
                 layers.push(child_id);
             }
         })
-        .insert((Layers(layers), InheritedVisibility::HIDDEN, GlobalTransform::default()));
+        .insert((Layers(layers), InheritedVisibility::VISIBLE, GlobalTransform::default()));
 }
 
 fn add_event_reader(
     mut add: EventReader<AsciiAddEvent>,
-    mut mov: EventWriter<AsciiMoveEvent>,
     mut materials: ResMut<Assets<Map<UserData>>>,
     maps: Query<&Handle<Map<UserData>>>,
     layers: Query<&Layers>
@@ -179,8 +189,8 @@ fn update_visibility(
 }
 
 #[derive(Debug, Clone, Default, Reflect, AsBindGroup, ShaderType)]
-struct UserData {
-    alpha: f32
+pub(crate) struct UserData {
+    pub(crate) alpha: f32
 }
 
 
@@ -189,13 +199,13 @@ impl Plugin for AsciiRenderPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<UpdateViewLayerEvent>()
-            .add_systems(PostStartup, startup)
+            .add_systems(Startup, startup)
             .add_systems(Update, (
                 add_event_reader,
                 move_event_reader
-                ))
+                ).run_if(in_state(MainState::InGame)))
             .add_systems(Update, camera_control)
-            .add_systems(Update, update_visibility)
+            .add_systems(Update, update_visibility.run_if(in_state(MainState::InGame)))
             .add_plugins(CustomFastTileMapPlugin::<UserData> {
                 user_code: Some(
                     r#"
@@ -244,6 +254,7 @@ impl Plugin for AsciiRenderPlugin {
                 ),
                 ..default()
             })
+            .init_resource::<AsciiAtlas>()
             .insert_resource(ClearColor(Color::BLACK));
     }
 }
